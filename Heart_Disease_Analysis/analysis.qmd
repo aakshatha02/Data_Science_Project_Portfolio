@@ -1,0 +1,396 @@
+---
+title: "Project on Heart Diseases"
+subtitle: "Heart Disease Analysis and Predictions"
+author: 
+  Akshatha
+date: 2023-01-15
+abstract: "This report presents an analysis of heart disease data using R Studio. The data set includes demographic information and various medical measurements for a group of patients, and the goal of the analysis is to identify risk factors for heart disease, indicate whether chest results to  heart disease and the  kind of chest pain patients experience and predict whether a person's age and gender affect their risk of heart disease.Exploratory data analysis techniques such as visualizations were used to examine the relationship between different variables and the presence of heart disease. We predicted whether a person has heart disease using the Logistics regression model. Results suggest that risk factors for heart disease include Chest pain, gender, and ca(number of major vessels), while factors such as exercise, regular check-ups, and others may have a protective effect. <!--For the final version: Write an executive summary here. Write it when you are mostly finished with the main report. It should summarize the question, with what data and how you answer it, and what the result is.-->" 
+
+format: 
+  html:
+    
+    code-fold: true
+    standalone: true
+    embed-resources: true
+    toc: true
+---
+
+<!-- Notes on workflow and delivery:
+- IMPORTANT: Select your language R or python
+- In both cases you render your report with quarto to an html file. The specification above should ensure that your html-file is a standalone file with embedded resources. That means that the figures which are produced by your data visualizations are included in the html fill. Otherwise the figures are in an extra folder. 
+- Put the data you need into a folder data/
+- All team members need to clone the repository to their local computers.
+- Every team member should finally have pushed some work to GitHub!
+- Commit early and often! Then we can help you when you have questions or need directions. 
+- Before you start to work as a team member: Always do "git pull" before!
+- Try to finish an individual work session with comments on next steps and open questions. Try to leave this file in a state such that it renders in quarto. Commit and push. 
+- CONFLICTS: Git conflicts will probably occur when you work in teams while pulling and pushing. This can be solved. If you do not manage, ask for help. Also, if you have conflict which are not git-related in the group :-) 
+- The final commits should include 
+  - the source file (usually qmd, or ipynb), 
+  - the rendered html file, 
+  - the data (usually in csv)
+-->
+
+## Introduction
+
+<!-- 
+URGENT: Write a draft of this section!
+In this section describe: 
+- What is the research question(s) you want to answer and why?
+- With what data you want to answer the question?
+- Where does the data come from, how was it collected?
+--> 
+
+###### For this project we aim to analyse the heart disease dataset and predict whether a persons age and gender affect their risk of causing heart disease. The dataset we are using was downloaded from Kaggle websites that are set dates from 1988 till 2019 and consists of four databases: Cleveland, Hungary, Switzerland, and Long Beach V. It contains 76 attributes, including the predicted attribute, but all published experiments refer to using a subset of 14 of them. 
+
+###### To achieve this, we make use of R Studio and required libraries to visualise, analyse and predict the dataset.
+
+## Questions
+
+#### 1) How do a person's age and gender affect their risk of heart disease? (Prediction)
+
+#### 2) What are the other risk factors causing the heart disease?
+
+#### 3) Are patients experiencing chest pain likely to have heart disease? 
+
+#### 4)IS chest pain an indication of heart disease and What kind of chest pain do most heart patients experience? 
+
+
+## Data 
+
+<!-- URGENT: Put the dataset you want to use into this repository and import it. -->
+#### Dataset has 14 variables with 1025 observations.
+#### **Attribute Description**
+
+###### •    *age*: The person's age in years
+###### •    *sex*: The person's sex (1 = male, 0 = female)
+###### •    *cp*: chest pain type
+######      -- Value 0: asymptomatic
+######      -- Value 1: atypical angina
+######      -- Value 2: non-anginal pain
+######      -- Value 3: typical angina
+###### •    *trestbps*: The person's resting blood pressure (mm Hg on admission to the hospital)
+###### •    *chol*: The person's cholesterol measurement in mg/dl
+###### •    *fbs*: The person's fasting blood sugar (> 120 mg/dl, 1 = true; 0 = false)
+###### •    *restecg*: resting electrocardiographic results
+######      -- Value 0: showing probable or definite left ventricular hypertrophy by Estes' criteria
+######      -- Value 1: normal
+######      -- Value 2: having ST-T wave abnormality (T wave inversions and/or ST elevation or depression of > 0.05 mV)
+###### •    *thalach*: The person's maximum heart rate achieved
+###### •    *exang*: Exercise induced angina (1 = yes; 0 = no)
+###### •    *oldpeak*: ST depression induced by exercise relative to rest ('ST' relates to positions on the ECG plot.)
+###### •    *slope*: the slope of the peak exercise ST segment
+######      0: downsloping; 1: flat; 2: upsloping
+###### •    *ca*: The number of major vessels (0-4)
+###### •    *thal* Results of the blood flow observed via the radioactive dye.
+######      -- Value 0: NULL (dropped from the dataset previously)
+######      -- Value 1: fixed defect (no blood flow in some part of the heart)
+######      -- Value 2: normal blood flow
+######      -- Value 3: reversible defect (a blood flow is observed but it is not normal)
+###### •    *target*: Heart disease (0 = no, 1 = yes)
+
+```{r}
+#| label: data-import
+df <- read.csv("data/heart.csv")
+sum(is.na(df))
+```
+
+## Analysis
+
+<!--
+In this section: 
+Text describing the steps of analysis and some well crafted code chunks with visualization(s) and a statistical analysis that assesses the research questions.
+-->
+  
+
+
+```{r}
+#| label: packages-data
+#| message: false  # We do not want to see the common tidyverse message in our document
+# Load packages
+library(dplyr)
+library(tidyverse)
+library(plotly)
+library(ggplot2)
+library(tidymodels)
+library(modelsummary)
+library(corrplot)
+library(patchwork)
+library(ROCR)
+```
+
+
+
+```{r}
+#| label: visualization
+df1 <- df
+df1$target[df1$target == 1 ] = "Disease"
+df1$target[df1$target == 0 ] = "No Disease"
+df1$sex[df1$sex == 0 ] = "Female" 
+df1$sex[df1$sex == 1 ] = "Male"
+df1$exang[df1$exang == 0 ] = "Not Excercise Induced Angina" 
+df1$exang[df1$exang == 1 ] = "Excercise Induced Angina"
+df1$slope[df1$slope == 0 ] = "downsloping" 
+df1$slope[df1$slope == 1 ] = "Flat"
+df1$slope[df1$slope == 2 ] = "upsloping"
+df1$fbs[df1$fbs == 0 ] = "fasting blood sugar (< 120 mg/dl)"
+df1$fbs[df1$fbs == 1 ] = "fasting blood sugar (> 120 mg/dl)"
+df1$restecg[df1$restecg == 0 ] = "Less"
+df1$restecg[df1$restecg == 1 ] = "Normal"
+df1$restecg[df1$restecg == 2 ] = "Abnormality"
+df1$cp[df1$cp == 0 ] = "asymptomatic"
+df1$cp[df1$cp == 1 ] = "atypical angina"
+df1$cp[df1$cp == 2 ] = "non-anginal pain"
+df1$cp[df1$cp == 3 ] = "typical angina"
+
+
+
+# URGENT: Make at least one first visualization here. 
+```
+#### 1) How do a person's age and gender affect their risk of heart disease?
+
+
+```{r}
+ggplot(df1, mapping=aes(x=age, color = target)) + geom_histogram(bins = 50) +
+  labs(x = "Age", y = "Count", title = 'Age wise distribution')
+```
+
+
+```{r}
+df2 <-df
+df2$age_group <- cut(df1$age, breaks=seq(25,80, 5))
+
+age_group <- df2 |>
+  group_by(age_group) |>
+  summarise(target = sum(target))
+na.omit(age_group)
+
+age_plot <- df2 |>
+  group_by(age_group) |>
+  summarise(target = sum(target)) |>
+  ggplot(df, mapping = aes(x= age_group, y= target, fill = target)) + geom_col(position = "dodge") + labs(x = 'Age group', y = "target", title = "Distribution of Heart disease based on age group")
+
+na.omit(age_plot)
+```
+### From the graph above, the age group 40-45 years and 50-55years are more likely at risk of heart disease.
+
+
+```{r}
+#Distribution of Chest pain type
+ggplot(df1, mapping=aes(x = df$sex, color = target)) + geom_histogram(bins =50) + 
+labs(x="Sex", y="Count", title="Distribution of sex ")
+```
+#### The dataset revealed that men have a higher count than females and males have a higher percentage of heart disease than females.
+
+```{r}
+round(prop.table(table(df1$sex)),2)
+round(prop.table(table(df1$sex, df1$target)),2)
+```
+#### From the dataset, there are 70% Males and 30% Females,29% of the Males and 22% of the Females were dignosed with heart disease.From the observation, Males are more likely to  get heart disease than Females.
+
+#### 2) What are the other risk factors causing the heart disease?
+
+
+```{r}
+df1 %>%
+  ggplot()+
+  geom_bar(mapping = aes(x= cp, fill = target)) + labs(x="CP", y="Target", title="Distribution of chest pain type ") +
+  scale_fill_manual("legend", values = c("Disease" = "gold", "No Disease" = "dark orange"))
+```
+#### From the above plot, chest pain seems to appear more with heart disease patients whereas, with no heart disease, patients are comparatively less to feel chest pain.
+```{r}
+ggplot(df1, aes(x= df$slope, fill=target)) + geom_histogram(position="dodge", bins=5) + 
+  labs(x="Slope", y="Count", title = "Analysis on types of Slope")
+```
+
+#### We can observe that those who exercise on an upslope have a higher risk of developing heart disease than those who exercise on a flat or downward slope. Let's look at the age range that participates in the upsloping exercise.
+
+```{r}
+df1 %>%
+  ggplot()+
+  geom_point(mapping = aes(x= slope, y = age, color=target, size = 10))+
+  labs(x="Slope", y="Age", title="Distiribution of heart disease with respect to age and excercise surface",color = "Target") + guides(size="none") 
+```
+#### Most people including the aged are found to exercise in flat and upsloping areas.
+
+```{r}
+df1 %>%
+  ggplot() +
+  geom_boxplot(mapping = aes(x = chol, fill = target))  + coord_flip() +
+  scale_fill_manual("legend", values = c("Disease" = "magenta", "No Disease" = "Purple"))+labs( x= "cholestrol level", title="Distiribution of heart disease with Cholestrol")
+```
+#### According to the website (https://www.hopkinsmedicine.org/health/treatment-tests-and-therapies/lipid-panel), a good cholesterol level for an adult is less than 200mg/dL. According to the plot below, it starts at 200 for both persons with heart disease and those without it. There are some outliers as well. Heart disease is not primarily caused by cholesterol.
+```{r}
+df1 %>%
+  ggplot()+ 
+  geom_bar(mapping=aes(x= fbs, fill = target))+labs(title="Distiribution of heart disease with respect to fasting blood sugar")
+```
+#### The likelihood of developing heart disease is not affected by blood sugar levels less than or larger than 120 mg/dl. Heart disease affects persons with normal blood sugar levels as well.
+```{r}
+df1 %>%
+  ggplot()+
+  geom_bar(mapping=aes(x= target, fill= restecg), position="dodge") +
+  facet_grid(~sex)+
+  scale_fill_brewer(palette = "Dark2")+
+  labs(title = "Heart disease diagnosis frequency by sex and restecg")
+
+```
+
+#### Heart disease is not significantly impacted by abnormalities found in ECG readings. Since Less ECGs are normally distributed and more are normal, we can conclude that ECG frequency is not a risk factor for developing heart disease.
+```{r}
+df1 %>%
+  ggplot()+
+  #geom_point(mapping = aes(x = thalach, y = target),color = "Brown")
+  geom_histogram(mapping = aes(x= thalach, fill = target), bins=30) +
+  scale_fill_manual("legend", values = c("Disease" = "Cyan", "No Disease" = "brown"))+
+  labs(title = "Distribution of heart disease based on heart rate", x = "maximum heart rate achieved")
+
+```
+#### Adults typically have a resting heart rate between 60 and 100 beats per minute. The healthier the person is, the lower their heart rate. As the heart rate rises, more people are prone to get heart disease, as we observe from the plot.
+
+
+```{r}
+df1 %>%
+  ggplot() +
+  geom_boxplot(mapping = aes(x = oldpeak, fill = target )) + coord_flip()+scale_fill_manual("legend", values = c("Disease" = "Blue", "No Disease" = "light blue"))
+```
+#### Exercise-induced ST depression as compared to rest (the term "ST" refers to places on the ECG plot). People with heart disease have an old peak value below 1, while those without heart disease have a ST depression value above 2. Also, there are outliers.
+
+```{r}
+pairs(df)
+```
+
+## Correlation Plot
+```{r}
+df$age <- as.numeric(df$age)
+df$sex <- as.numeric(df$sex)
+df$cp <- as.numeric(df$cp)
+df$trestbps <- as.numeric(df$trestbps)
+df$chol <- as.numeric(df$chol)
+df$fbs <- as.numeric(df$fbs)
+df$restecg <- as.numeric(df$restecg)
+df$thalach <- as.numeric(df$thalach)
+df$exang <- as.numeric(df$exang)
+df$slope <- as.numeric(df$slope)
+df$ca <- as.numeric(df$ca)
+df$thal <- as.numeric(df$thal)
+df$target <- as.numeric(df$target)
+df$oldpeak <- as.numeric((df$oldpeak))
+
+```
+
+
+```{r}
+#class(df$age)
+corr <- cor(df[, 1:14])
+corrplot(corr)
+```
+#### From the confusion matrix, we can observe that the major factors affecting heart disease irrespective of age and gender are chest pain, thalach, and slope.  exang(Exercise-induced angina), old peak (ST depression induced by exercise relative to rest) and ca(The number of major vessels), Thal (Blood flow), sex, and age are  insignificant in causing heart disease.
+
+
+
+```{r}
+g1 <- df1 %>%
+  ggplot()+
+  geom_bar(mapping=aes(x= cp, fill= target))+ 
+labs(x="CP", y="Target", title="Distribution of chest pain type ")+
+  scale_fill_manual("legend", values = c("Disease" = "gold", "No Disease" = "dark orange"))
+
+g2 <- df1 %>%
+  ggplot(mapping = aes(x= target, fill = cp))+
+  geom_bar( position = "fill") 
+
+g1
+g2
+  
+```
+
+## 3. Are patients experiencing chest pain likely to have heart disease? 
+
+#### Yes, patients with heart disease are more likely to experience chest pain.However, it cannot be a sign of heart disease because chest pain is common in healthy persons as well.
+ 
+## 4. IS chest pain an indication of heart disease and What kind of chest pain do most heart patients experience?
+#### We cannot firmly agree that experiencing chest pain necessarily implies developing heart disease. Although there are other possible causes of chest pain, those who have heart disease are more prone to experience it. We can deduce from the plot that the majority of patients with heart disease experience non-anginal pain.
+
+## Do a person's age and gender affect their risk of heart disease?                                (Prediction)
+ 
+#### Logistic Regression
+
+```{r}
+#| label: analysis
+library(caTools)
+set.seed(222)
+
+df_filt <- df %>%
+  filter(chol<400)
+
+data_split <- sample.split(df$target, SplitRatio = 0.7)
+
+train_data = subset(df_filt, split = TRUE)
+test_data = subset(df_filt, split = FALSE)
+# URGENT: Make at least one statistical analysis (e.g. a model) here. 
+```
+
+
+
+```{r}
+#library(ROCR)
+log_model <- glm(target ~ .,  data = train_data, family = "binomial")
+summary(log_model)
+```
+
+#### From the summary of the logistic regression model, there is a strong association between chest pain and heart disease diagnosis having a p-value less than 2e-16. There is also less significant variable like FBS, restecg, exang, and slope. Let's remove these variables as it causes overfitting of the model.
+
+#### Age does not increase the risk of heart disease, according to the p-value of age (0.46) compared to the alpha value (0.05), and the presence of heart disease is indicated by the p-value of sex (1.0e-12), which is less than the alpha value (0.05).
+```{r}
+log_model1 <- glm(target ~ sex + cp + trestbps + chol + thalach + oldpeak + ca + thal,  data = train_data, family = "binomial")
+summary(log_model1)
+```
+## Plotting ROCR Curve
+
+```{r}
+predictTrain=predict(log_model1,type="response")
+ROCRpred=prediction(predictTrain, train_data$target)
+ROCRperf=performance(ROCRpred,'tpr','fpr')
+plot(ROCRperf)
+plot(ROCRperf,colorize=TRUE)
+plot(ROCRperf, colorize=TRUE, print.cutoffs.at=seq(0,1,by=0.1),
+     text.adj=c(-0.2,1.7))
+```
+#### From ROCR curve threshold of 0.7 seems to be okay so that true positives are maximised such that maximum number of patients with heart disease are not identified as healthy.
+
+## Area under curve
+```{r}
+auc = as.numeric(performance(ROCRpred, 'auc')@y.values)
+auc
+```
+#### We can see the value of AUC so Higher the AUC, the better the model is at distinguishing between patients with the disease and no disease.The AUC value is 0.91 which means our model is able to distinguish between patients with the disease and no disease with a probability of 0.91,So it is a good value.
+
+## Accuracy
+```{r}
+predictTest=predict(log_model1, newdata = test_data, type = "response")
+table(test_data$target,predictTest >=0.7)
+```
+#### Accuracy on training data
+
+```{r}
+(448+391)/nrow(test_data)
+```
+
+
+<!-- There can be more chunks of your choice-->
+
+#### Logistic regression after removing less significant attributes performed best with an accuracy of testing 82%.
+
+
+## Conclusion
+
+<!-- 
+In this section: 
+Derive answers to the question from your analysis
+Identify limitations of your analysis
+How reliable are your answers? 
+-->
+
+#### In conclusion, our analysis of the heart disease dataset has revealed several important insights. We found that factors such as Chest pain, Sex and ca(number of major vessels) are strongly associated with the presence of heart disease. From our plot, we can infer that non-anginal pain(chest pain) is mostly seen in heart disease patients and Males are more vulnerable to being diagnosed with heart disease than females. Based on the score (82%), the model predicted is good. Factors like smoking, obesity, and a history of heart disease in the family were missing in our dataset which could help in predicting the model. Our visualizations also highlighted the importance of regular exercise on a flat surface and downsloping. Additionally, the sample size is relatively small, which may limit our findings.
+#### In future research, it would be beneficial to conduct a larger study with a more diverse population to further validate our results. Additionally, it would be interesting to investigate the potential role of other factors such as stress and sleep in the development of heart disease. Overall, we recommend the importance of maintaining a healthy lifestyle, regular check-ups, early medical attention to chest pain, and public awareness of heart disease(factors) in preventing heart disease.
