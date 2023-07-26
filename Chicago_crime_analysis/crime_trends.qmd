@@ -1,0 +1,133 @@
+## CHICAGO CRIME PATTERNS/TRENDS
+
+### Load packages and data
+```{python}
+import pandas as pd
+import numpy as np
+from sklearn.cluster import KMeans
+import folium
+import missingno as msno
+import matplotlib.pyplot as plt
+import geopandas as gpd
+import holoviews as hv
+import geoviews as gv
+import geoviews.tile_sources as gts
+from folium.plugins import MarkerCluster
+from matplotlib.cm import get_cmap
+from geopy.geocoders import Nominatim
+import seaborn as sns
+```
+
+## PREPROCESSING
+
+```{python}
+data = pd.read_csv("Data/Crimes_-_2001_to_Present (3).csv", delimiter= ';')
+data.head(10)
+```
+
+```{python}
+data['Year'].unique()
+```
+
+```{python}
+## Convert time objects
+data['Date'] = pd.to_datetime(data['Date'])
+data['time'] = [d.time() for d in data['Date']]
+data['day'] = data['Date'].dt.day_name()
+data['month'] = data['Date'].dt.month
+```
+
+```{python}
+## Replacing missing value of Longitude and Latitude to its respective median value
+median_longitude = data["Longitude"].median()
+data["Longitude"] = data["Longitude"].fillna(median_longitude)
+median_latitude = data["Latitude"].median()
+data["Latitude"] = data["Latitude"].fillna(median_latitude)
+median_xcordinate = data["X Coordinate"]
+data["X Coordinate"] = data["X Coordinate"].fillna(median_xcordinate)
+median_ycordinate = data["Y Coordinate"]
+data["Y Coordinate"] = data["Y Coordinate"].fillna(median_ycordinate)
+```
+
+```{python}
+## Drop NA values
+data = data.dropna(subset=["Location"])
+data = data.dropna(subset=["Location Description"])
+data = data.dropna(subset=["Ward"])
+data = data.dropna(subset=["Zip Codes"])
+data = data.dropna(subset=["Community Areas"])
+data = data.dropna(subset=["Historical Wards 2003-2015"])
+data = data.dropna(subset=["Census Tracts"])
+data = data.dropna(subset=["Boundaries - ZIP Codes"])
+data = data.dropna(subset=["Police Districts"])
+data = data.dropna(subset=["Police Beats"])
+```
+
+## Crime Trends/Patterns
+
+### Crime Patterns per Month
+```{python}
+data.Date = pd.to_datetime(data.Date, format='%m/%d/%Y %I:%M:%S %p')
+# Set the Date column as the index
+data.set_index('Date', inplace=True)
+plt.figure(figsize=(11,5))
+crimes_2021_2023 = data['2021':'2023'] 
+crimes_2021_2023.resample('M').size().plot(legend=False,color = 'green')
+plt.title('Number of crimes per month (2021 - 2023)')
+plt.xlabel('Months')
+plt.ylabel('Number of crimes')
+plt.show()
+```
+
+```{python}
+plt.figure(figsize=(11,5))
+crimes_2021_2023 = data['2004':'2023'] 
+crimes_2021_2023.resample('M').size().plot(legend=False,color = 'green')
+plt.title('Number of crimes per Month (2021 - 2023)')
+plt.xlabel('Months')
+plt.ylabel('Number of crimes')
+plt.show()
+```
+
+### Crime Patterns per Year
+
+```{python}
+plt.figure(figsize=(7,4))
+crimes_2021_2023 = data['2004':'2023']
+crimes_2021_2023.resample('D').size().rolling(365).sum().plot()
+plt.title('Total sum of all crimes from 2004 - 2023')
+plt.ylabel('Number of crimes')
+plt.xlabel('Days')
+plt.show()
+```
+
+### Crime Patterns/Trends for various Primary Types
+```{python}
+from matplotlib import cm
+# Pivot the data to count the number of crimes for each primary type and date
+data_count_date = data.pivot_table('ID', aggfunc=np.size, columns='Primary Type', index=data.index.date, fill_value=0)
+
+# Convert the index to a datetime index
+data_count_date.index = pd.DatetimeIndex(data_count_date.index)
+
+rolling_sums = data_count_date.rolling(365).sum()
+# Create the subplot layout
+nrows = (len(rolling_sums.columns) + 2) // 3
+fig, axes = plt.subplots(nrows=nrows, ncols=3, figsize=(15, nrows*4))
+
+# Define the color palette
+color_palette = cm.Set1(np.linspace(0, 1, len(rolling_sums.columns)))
+
+# Plot each primary type with a different color
+for i, col in enumerate(rolling_sums.columns):
+    ax = axes[i//3, i%3]
+    ax.plot(rolling_sums.index, rolling_sums[col], color=color_palette[i])
+    ax.set_title(col)
+    ax.set_xlabel('Date')
+    ax.set_ylabel('Number of Crimes')
+    
+# Adjust the layout and spacing of the subplots
+plt.tight_layout()
+plt.subplots_adjust(hspace=0.8)
+plt.show()
+```

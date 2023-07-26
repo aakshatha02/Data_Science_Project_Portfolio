@@ -1,0 +1,367 @@
+---
+title: "Crime Analysis in Chicago City"
+author: "Akshatha & Doris"
+format:   
+  html:                     
+    standalone: true      
+    embed-resources: true   
+    code-fold: true         
+    number-sections: false
+---
+
+### METHODOLOGY
+
+#### Load packages and data
+```{python}
+import pandas as pd
+import numpy as np
+from sklearn.cluster import KMeans
+import folium
+import missingno as msno
+import matplotlib.pyplot as plt
+import geopandas as gpd
+import holoviews as hv
+import geoviews as gv
+import geoviews.tile_sources as gts
+from folium.plugins import MarkerCluster
+from matplotlib.cm import get_cmap
+from geopy.geocoders import Nominatim
+import seaborn as sns
+```
+
+#### PREPROCESSING
+
+```{python}
+data = pd.read_csv("Data/Crimes_-_2001_to_Present_4.csv", delimiter= ';')
+data.head(10)
+```
+
+
+```{python}
+msno.bar(data)
+```
+
+```{python}
+## Convert time objects
+data['Date'] = pd.to_datetime(data['Date'])
+data['time'] = [d.time() for d in data['Date']]
+data['day'] = data['Date'].dt.day_name()
+data['month'] = data['Date'].dt.month
+```
+
+```{python}
+## Replacing missing value of Longitude and Latitude to its respective median value
+median_longitude = data["Longitude"].median()
+data["Longitude"] = data["Longitude"].fillna(median_longitude)
+median_latitude = data["Latitude"].median()
+data["Latitude"] = data["Latitude"].fillna(median_latitude)
+median_xcordinate = data["X Coordinate"]
+data["X Coordinate"] = data["X Coordinate"].fillna(median_xcordinate)
+median_ycordinate = data["Y Coordinate"]
+data["Y Coordinate"] = data["Y Coordinate"].fillna(median_ycordinate)
+```
+
+```{python}
+## Drop NA values
+data = data.dropna(subset=["Location"])
+data = data.dropna(subset=["Location Description"])
+data = data.dropna(subset=["Ward"])
+data = data.dropna(subset=["Zip Codes"])
+data = data.dropna(subset=["Community Areas"])
+data = data.dropna(subset=["Historical Wards 2003-2015"])
+data = data.dropna(subset=["Census Tracts"])
+data = data.dropna(subset=["Boundaries - ZIP Codes"])
+data = data.dropna(subset=["Police Districts"])
+data = data.dropna(subset=["Police Beats"])
+```
+
+#### EXPLORATORY DATA ANALYSIS
+
+###### Frequency of Crimes per Crime Type
+```{python}
+crime_type_data = data['Primary Type'].value_counts()
+fig = plt.figure(figsize=(8,5))
+plt.title("Frequency of Crimes per Crime Type")
+plt.xlabel("Type of Crimes")
+plt.ylabel("Frequency of Crimes")
+ax = crime_type_data.plot(kind='bar',color='green')
+```
+
+###### Frequency of Crimes per Day
+```{python}
+crime_type_data = data['day'].value_counts(ascending=True)
+fig = plt.figure(figsize=(5,5))
+plt.title("Frequency of Crimes per Day")
+plt.ylabel("Frequency of Crimes")
+plt.xlabel("Days")
+ax = crime_type_data.plot(kind='bar')
+```
+
+###### Frequency of Crimes per Year
+```{python}
+crimes_per_hour = data.groupby("Year")["Primary Type"].count()
+ax = crimes_per_hour.plot(kind='bar', color = 'orange')
+plt.xlabel("Year")
+plt.ylabel("Number of crimes")
+plt.title("Total number of crimes per year")
+plt.show()
+```
+
+## Comparing Crime count for Crime Types from 2021 to 2023
+```{python}
+# Filter the data for the years 2022 and 2023
+data_2021 = data[data['Year'] == 2021]
+data_2022 = data[data['Year'] == 2022]
+data_2023 = data[data['Year'] == 2023]
+# Get the crime count per category for each year
+crime_type_data_2021 = data_2021['Primary Type'].value_counts()
+crime_type_data_2022 = data_2022['Primary Type'].value_counts()
+crime_type_data_2023 = data_2023['Primary Type'].value_counts()
+# Combine the data for both years into one dataframe
+combined_data = pd.concat([crime_type_data_2021,crime_type_data_2022, crime_type_data_2023], axis=1)
+combined_data.columns = ['2021','2022', '2023']
+combined_data = combined_data.fillna(0)
+# Create a grouped bar chart
+fig, ax = plt.subplots(figsize=(10, 5))
+combined_data.plot(kind='bar', ax=ax)
+ax.set_title('Crime count by category and year')
+ax.set_xlabel('Category of crime')
+ax.set_ylabel('Frequency of crimes')
+plt.show()
+```
+
+#### Percentage change in Crime count for each crime type from 2021 to 2022
+
+```{python}
+# Calculate percentage change in crime count for each crime type from 2021 to 2023
+data_2021 = data[data['Year'] == 2021]
+data_2022 = data[data['Year'] == 2022]
+grouped_2021 = data_2021.groupby('Primary Type')['ID'].count()
+grouped_2022 = data_2022.groupby('Primary Type')['ID'].count()
+pct_change = ((grouped_2022 - grouped_2021) / grouped_2021) * 100
+# Sort the percentage change values in descending order
+pct_change_sorted = pct_change.sort_values(ascending=False)
+# Plot the percentage change values as a line plot with dots at the top
+fig, ax = plt.subplots(figsize=(8, 5))
+ax.plot(pct_change_sorted.values, 'o-')
+ax.set_xticks(range(len(pct_change_sorted)))
+ax.set_xticklabels(pct_change_sorted.index, rotation=90)
+ax.set_xlabel('Crime Type')
+ax.set_ylabel('Percentage Change in Crime Count (2021-2022)')
+ax.set_title('Percentage Change in Crime Count by Type (2021-2022)')
+plt.show()
+```
+
+#### Percentage of Arrest
+
+```{python}
+import matplotlib.pyplot as plt
+
+arrest_df = data['Arrest'].value_counts()
+arrest_percent = (arrest_df / data['Arrest'].sum()) * 100 
+arrest_percent.rename("% of Arrests", inplace=True)
+arrest_percent.rename({True: '% Arrested', False: '% Not Arrested'}, inplace=True)
+
+# Format pie chart to show percentage and count
+def make_autopct():
+    def my_autopct(pct):
+        count = int(round(pct / 100 * data['Arrest'].count()))
+        return '{:.2f}%  ({:,})'.format(pct, count)
+    return my_autopct
+
+# Plot results in a pie chart
+arrest_percent.plot.pie(fontsize=11, autopct=make_autopct(),
+                         figsize=(4, 5))
+plt.ylabel('')  # Remove the ylabel
+plt.title('Arrests')  # Set a title for the pie chart
+plt.show()
+```
+
+
+```{python}
+limit = 1500
+df_incidents = data.iloc[0:limit, :]
+```
+
+###### Distribution of Crime in Chicago city
+```{python}
+# Define a dictionary of colors for each primary type
+color_dict = {'ARSON': 'darkred', 
+              'ASSAULT': 'red',
+              'BATTERY': 'lightred',
+              'BURGLARY': 'purple',
+              'CRIMINAL DAMAGE': 'darkpurple',
+              'CRIMINAL TRESPASS': 'darkyellow',
+              'DECEPTIVE PRACTICE': 'white',
+              'HOMICIDE': 'darkblue',
+              'INTERFERENCE WITH PUBLIC OFFICER': 'green',
+              'INTIMIDATION': 'sky blue',
+              'KIDNAPPING': 'orange',
+              'LIQUOR LAW VIOLATION': 'beige',
+              'MOTOR VEHICLE THEFT': 'darkgreen',
+              'NARCOTICS': 'lightgray',
+              'OFFENSE INVOLVING CHILDREN': 'darkgray',
+              'OTHER OFFENSE': 'black',
+              'PUBLIC PEACE VIOLATION': 'pink',
+              'ROBBERY': 'yellow',
+              'SEX OFFENSE': 'blue', 
+              'THEFT': 'green',
+              'WEAPONS VIOLATION': 'lightgreen'
+}
+# group the data by latitude, longitude, and primary type and count the number of crimes
+crime_map_data = df_incidents.groupby(['Latitude', 'Longitude', 'Primary Type']).size().reset_index(name='counts')
+# create a map centered on Chicago
+chicago_map = folium.Map(location=[41.8781, -87.6298], zoom_start=11)
+# add markers to the map for each crime location, with a popup showing the latitude, longitude, and primary type
+for lat, lon, crime_type, count in zip(crime_map_data['Latitude'], crime_map_data['Longitude'], crime_map_data['Primary Type'], crime_map_data['counts']):
+    color = color_dict.get(crime_type, 'gray')  # get the color for the crime type, or use 'gray' as default
+    popup_text = "Latitude: {}, Longitude: {}, Primary Type: {}" .format(lat, lon, crime_type)
+    popup = folium.Popup(popup_text, max_width=250)
+    folium.Marker([lat, lon], 
+                  icon=folium.Icon(color=color),  # use the color for the crime type
+                  popup=popup).add_to(chicago_map)
+# display the map
+chicago_map
+```
+
+
+###### Distribution of Beat
+```{python}
+beats_df=data.groupby(['Beat']).size().reset_index(name='Total_Crimes')
+beats_df=beats_df.rename(columns={'Beat':'beat_num'})
+beats_df.head(10)
+```
+
+
+## Displaying Crime Hotspots
+```{python}
+# Define KMeans model
+ml = KMeans(n_clusters=100, init='k-means++')
+# Fit model to longitude and latitude data
+X = df_incidents[['Longitude','Latitude']].values
+predictions = ml.fit_predict(X)
+# Add cluster label to original data
+kclustered = pd.concat([df_incidents.reset_index(), pd.DataFrame({'Cluster':predictions})], axis=1)
+#kclustered.drop('index', axis=1, inplace=True)
+
+# Get cluster centers
+centers = ml.cluster_centers_
+kcenters = pd.DataFrame(centers, columns=['Longitude', 'Latitude'])
+
+# Add total crimes to cluster centers dataframe
+kcenters['Total Crimes'] = kclustered.groupby('Cluster')['ID'].count().reset_index()['ID']
+
+# Reverse geocode cluster centers to get addresses
+geolocator = Nominatim(user_agent="LAB-PROJECT-B", timeout=3)
+address=[]
+for index,row in kcenters.iterrows():
+    rev_location=geolocator.reverse(np.array([row.Latitude, row.Longitude]))
+    address.append(rev_location.address)
+kcenters['Address'] = address
+
+# Create a map with cluster markers and year filter
+def create_map():
+    # Create map centered on Chicago
+    m = folium.Map(location=[41.8781,-87.64], zoom_start=11)
+    folium.TileLayer('cartodbpositron').add_to(m)
+    # Add layer control for year filter
+    years = sorted(data['Year'].unique())
+    year_layers = {}
+    for year in years:
+        filtered_data = kclustered[kclustered['Year'] == year]
+        layer_name = str(year)
+        year_layers[layer_name] = folium.FeatureGroup(name=layer_name)
+        for i in range(0, len(kcenters)):
+            loc = kcenters.iloc[i]['Address']
+            crime = filtered_data[filtered_data['Cluster'] == i].shape[0]
+            folium.Circle(
+                location=[kcenters.iloc[i]['Latitude'], kcenters.iloc[i]['Longitude']],
+                popup="<b>Location:</b> {loc}</br></br><b>Crimes: </b> {crime}<br>".format(loc=str(loc), crime=str(crime)),
+                radius=crime/15,
+                color='red',
+                fill=True,
+                fill_color='red',
+                fill_opacity=0.5
+            ).add_to(year_layers[layer_name])
+        year_layers[layer_name].add_to(m)
+    folium.LayerControl(collapsed=False).add_to(m)
+    
+    return m
+# Display map
+map = create_map()
+#map.save('clustered_200.html')
+map
+
+```
+
+
+```{python}
+# Drop any rows with missing values
+df_incidents.dropna(inplace=True)
+
+# Create a map centered on the mean latitude and longitude of the crime data
+crime_map = folium.Map(location=[df_incidents['Latitude'].mean(), df_incidents['Longitude'].mean()], zoom_start=11)
+
+# Create a dictionary to map primary types to marker colors
+primary_type_colors = {
+    'ARSON': 'red',
+    'ASSAULT': 'blue',
+    'BATTERY': 'green',
+    'BURGLARY': 'purple',
+    'CRIMINAL DAMAGE': 'orange',
+    'CRIMINAL TRESPASS': 'darkred',
+    'DECEPTIVE PRACTICE': 'lightred',
+    'GAMBLING': 'darkblue',
+    'HOMICIDE': 'cadetblue',
+    'INTERFERENCE WITH PUBLIC OFFICER': 'pink',
+    'INTIMIDATION': 'lightblue',
+    'KIDNAPPING': 'lightgreen',
+    'LIQUOR LAW VIOLATION': 'beige',
+    'MOTOR VEHICLE THEFT': 'darkpurple',
+    'NARCOTICS': 'gray',
+    'NON-CRIMINAL': 'black',
+    'NON-CRIMINAL (SUBJECT SPECIFIED)': 'white',
+    'OBSCENITY': 'lightgray',
+    'OFFENSE INVOLVING CHILDREN': 'green',
+    'OTHER OFFENSE': 'lightgreen',
+    'PROSTITUTION': 'blue',
+    'PUBLIC INDECENCY': 'darkgreen',
+    'PUBLIC PEACE VIOLATION': 'darkblue',
+    'ROBBERY': 'darkgreen',
+    'SEX OFFENSE': 'darkpurple',
+    'STALKING': 'darkorange',
+    'THEFT': 'red',
+    'WEAPONS VIOLATION': 'darkpurple'
+}
+
+# Create a marker cluster object
+marker_cluster = MarkerCluster()
+
+# Group the crime data by primary type
+grouped_data = df_incidents.groupby('Primary Type')
+
+# Loop through the grouped data and add a marker for each primary type to the marker cluster
+for primary_type, group in grouped_data:
+    for idx, row in group.iterrows():
+        if 'Location Description' in row:
+            popup_text = f"Primary Type: {row['Primary Type']}<br>Location Description: {row['Location Description']}"
+        else:
+            popup_text = f"Primary Type: {row['Primary Type']}"
+        marker_color = primary_type_colors.get(primary_type, 'gray')
+        marker = folium.Marker([row['Latitude'], row['Longitude']], popup=popup_text, icon=folium.Icon(color=marker_color))
+        marker_cluster.add_child(marker)
+
+# Add the marker cluster to the map and display it
+crime_map.add_child(marker_cluster)
+crime_map
+```
+
+## Crime Trends/Patterns
+
+#### To enhance the presentation of crime patterns, we opted to utilize the complete dataset spanning from 2004 to 2023. The code pertaining to this can be found in the file labeled crime_trends.qmd. 
+
+## Dashboard
+
+#### The Dashboard to visualise the crime count for each neighborhood can be found in the file named streamlit_app.py. Before running dashboard file named Modified_data_for Dashboard.ipynb has to be run to get the dataset which is used in streamlit_app.py.
+#### To run the streamlit, open terminal in VScode and type streamlit run streamlit_app.py, which displays the Dashboard. 
+
