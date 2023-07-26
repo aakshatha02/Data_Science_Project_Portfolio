@@ -1,5 +1,3 @@
-# Lab-project-B
-================
 ## *Topic* 
 ### Crime Analysis in Chicago City 
 
@@ -7,7 +5,7 @@
 Security has always been one of the most significant concerns. Government and security agencies are working hard to prevent crimes and protect their people. However, challenge of dealing with large amount of data has become a major issue for all organizations and therefore, a crime information system that is able to process large amount of data in a short period of time is needed. News and records indicate that there have been a large number of crimes in Chicago city. It is called as “murder capital” or “crime capital” of the U.S in 2012. Chicago had more murders in 2012 than any other city in the country. Therefore, there is a requirement to make more informed decisions and analyze crimes occurring in different region of Chicago city. Data was collected from Chicago Data Portal and will be analyzing 3 years of crime data of Chicago from 2021 - 2023. 
 
 ## *Goal*
-Our project aims to investigate 
+Aims to investigate 
 - crimes hotspots 
 - crime patterns
 - Dashboard count of crimes in each neighbourhood
