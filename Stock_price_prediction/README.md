@@ -1,0 +1,2 @@
+## Stock Price Prediction Using LSTM (Long Short-Term Memory)
+#### LSTM is one of the best ML approach for Time-Series forecasting. It is type of recurrent neural network(RNN) architecture designed to overcome the limitations of traditional RNNs in capturing long-term dependencies in sequential data.
